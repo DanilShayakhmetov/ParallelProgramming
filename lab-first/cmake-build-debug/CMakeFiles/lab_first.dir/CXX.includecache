@@ -1,0 +1,34 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+C:/clionProject/lab first/main.cpp
+iostream
+-
+chrono
+-
+matrix.cpp
+C:/clionProject/lab first/matrix.cpp
+multiplier.cpp
+C:/clionProject/lab first/multiplier.cpp
+
+C:/clionProject/lab first/matrix.cpp
+cstdlib
+-
+iostream
+-
+fstream
+-
+string
+-
+
+C:/clionProject/lab first/multiplier.cpp
+iostream
+C:/clionProject/lab first/iostream
+matrix.cpp
+C:/clionProject/lab first/matrix.cpp
+
