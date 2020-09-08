@@ -7,16 +7,16 @@ using namespace std;
 
 class solution {
 private:
-    int size;
+    int size = 10;
+    double eps = 1;
     int offset;
     int partSize;
     double *A;
     double *b;
     double *x;
     double *prevX = nullptr;
-    double eps = 0.01;
-    string const systemOfEquationsFile = "matrixA.txt";
-    string const equationSystemSolutionFile = "matrixX.txt";
+    string const systemOfEquationsFile = "coefficients.txt";
+    string const equationSystemSolutionFile = "results.txt";
 
 public:
     const int mainProcessId = 0;
@@ -34,15 +34,15 @@ public:
         delete[] prevX;
     }
 
-    void generateSystemOfEquation(int size) {
-        auto *systemItems = new double [size * size];
+    void generateSystemOfEquation() {
+        auto *systemItems = new double [size * (size + 1)];
         ofstream equationSystem(systemOfEquationsFile);
         ofstream solutionOfSystem(equationSystemSolutionFile);
-        equationSystem << size << endl;
-        solutionOfSystem << size << endl;
+        equationSystem << size << " " << size + 1 << endl;
+        solutionOfSystem << size << 1 << endl;
         if (size >= 1) {
             for (int i = 0; i != size; ++i) {
-                for (int j = 0; j != size; ++j) {
+                for (int j = 0; j != size + 1; ++j) {
                     if (i == j) {
                         systemItems[i * size + j] = 3 * size + rand() % (5 * size - 3 * size);
                     } else {
@@ -51,7 +51,8 @@ public:
                     equationSystem << systemItems[i * size + j] << " ";
                 }
                 equationSystem << "\r\n";
-                solutionOfSystem << 0 << "\r\n";
+                solutionOfSystem << rand() % 3 << "\r\n";
+
             }
         }
     }
@@ -75,7 +76,7 @@ public:
     }
 
     void writeResultToFile() {
-        if (processNumber == mainProcessId) {
+        if (this->isMainProcess()) {
             ofstream solutionOfSystem(equationSystemSolutionFile);
             for (auto i = 0; i < size; i++) {
                 solutionOfSystem << x[i] << " ";
@@ -84,20 +85,16 @@ public:
         }
     }
 
-    void initialize() {
+    void initializeSystem() {
         if (this->isMainProcess()) {
             readSystemFromFile();
         }
 
         MPI_Bcast(&size, 1, MPI_INT, mainProcessId, MPI_COMM_WORLD);
         MPI_Bcast(&eps, 1, MPI_DOUBLE, mainProcessId, MPI_COMM_WORLD);
-
-        if (processNumber != mainProcessId) {
-            x = new double[size];
-        }
         MPI_Bcast(x, size, MPI_DOUBLE, mainProcessId, MPI_COMM_WORLD);
 
-        if (processNumber == mainProcessId) {
+        if (this->isMainProcess()) {
             int offset = 0;
             for (int process = 0; process < processQuantity; process++) {
                 int partSize = size / processQuantity + (size % processQuantity > process);
@@ -126,7 +123,7 @@ public:
         }
     }
 
-    void computeIteration() {
+    void computation() {
         if (prevX == nullptr) {
             prevX = new double[size];
         }
@@ -143,7 +140,7 @@ public:
             }
             x[i] = (b[i - offset] - sum) / A[(i - offset) * size + i];
         }
-        MPI_Status status;
+
         const int partSize = size / processQuantity;
         for (int process = 0; process < processQuantity; process++) {
             const int offset = process * partSize;
@@ -152,7 +149,7 @@ public:
         }
     }
 
-    bool precisionReached() {
+    bool checkPrecision() {
         if (prevX == nullptr) {
             return false;
         }
@@ -164,18 +161,8 @@ public:
         return true;
     }
 
-    void outputResult() {
-        if (processNumber == mainProcessId) {
-            ofstream stream("linear-system.output");
-            for (auto i = 0; i < size; i++) {
-                stream << x[i] << " ";
-            }
-            stream.close();
-        }
-    }
-
 private:
-    bool isMainProcess() {
+    bool isMainProcess() const {
         if (processNumber == mainProcessId) {
             return true;
         } else {
