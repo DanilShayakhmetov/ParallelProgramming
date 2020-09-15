@@ -31,33 +31,33 @@ public:
             readDataset();
             for (int proc = 0; proc < processQuantity; ++proc) {
                 auto part = getPart(proc);
-//                MPI_Request request;
-//                MPI_Isend(part, partSize, MPI_INT, proc, 0, MPI_COMM_WORLD, &request);
+                MPI_Request request;
+                MPI_Isend(part, partSize, MPI_INT, proc, 0, MPI_COMM_WORLD, &request);
             }
         }
-//
-//        arrayPart = acceptData(mainProcessId);
 
-//        while (true) {
-//            if (processQuantity == 1) {
-//                sort(arrayPart, 0, partSize);
-//                break;
-//            }
-//
-//            if (processNumber == mainProcessId) {
-//                pivot = getPivot();
-//            }
-//            MPI_Bcast(&pivot, 1, MPI_INT, mainProcessId, MPI_COMM_WORLD);
-//            sort(arrayPart, 0, partSize);
-//            swapParts();
-//            separateProcess();
-//        }
-//
-//        if (processNumber == mainProcessId) {
-//            writeResult(joinParts());
-//        } else {
-//            joinParts();
-//        }
+        arrayPart = acceptData(mainProcessId);
+
+        while (true) {
+            if (processQuantity == 1) {
+                sort(arrayPart, 0, partSize);
+                break;
+            }
+
+            if (processNumber == mainProcessId) {
+                pivot = getPivot();
+            }
+            MPI_Bcast(&pivot, 1, MPI_INT, mainProcessId, MPI_COMM_WORLD);
+            sort(arrayPart, 0, partSize);
+            swapParts();
+            separateProcess();
+        }
+
+        if (processNumber == mainProcessId) {
+            writeResult(joinParts());
+        } else {
+            joinParts();
+        }
     }
 
     long* getPart(int procId) {
