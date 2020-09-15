@@ -1,4 +1,4 @@
-./lab-first/cmake-build-debug/
-/lab-first/.idea
+/lab-first/cmake-build-debug/
 /lab-second/cmake-build-debug/
-/lab-second/.idea
+/lab-first/idea
+/lab-second/idea
