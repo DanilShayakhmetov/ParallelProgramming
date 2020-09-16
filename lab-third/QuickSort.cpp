@@ -7,11 +7,11 @@ using namespace std;
 class QuickSort {
 
 private:
-    int arraySize = 100000;
-    long pivot = 0;
+    int arraySize = 10000000;
+    int pivot = 0;
     int partSize;
-    long *arraydata;
-    long *arrayPart;
+    int *arraydata;
+    int *arrayPart;
     string const dataFile = "dataset.txt";
     string const sortedDataFile = "sorted.txt";
 
@@ -60,7 +60,7 @@ public:
         }
     }
 
-    long* getPart(int procId) {
+    int * getPart(int procId) {
         partSize = arraySize / processQuantity;
         int from = procId * partSize;
         if (procId == processQuantity - 1) {
@@ -70,7 +70,7 @@ public:
         return &arraydata[from];
     }
 
-    long* acceptData(int from) {
+    int * acceptData(int from) {
         int size;
         int *tmp = new int[arraySize];
         MPI_Status status;
@@ -80,10 +80,10 @@ public:
         return &arraydata[from];
     }
 
-    long getPivot() {
-        long left = arrayPart[0];
-        long right = arrayPart[partSize - 1];
-        long middle = arrayPart[partSize / 2];
+    int getPivot() {
+        int left = arrayPart[0];
+        int right = arrayPart[partSize - 1];
+        int middle = arrayPart[partSize / 2];
         if (left <= middle && middle <= right) {
             return middle;
         } else if (middle <= left && left <= right) {
@@ -94,7 +94,7 @@ public:
     }
 
     void swapParts() {
-        long *leftPart, *rightPart;
+        int *leftPart, *rightPart;
         int adjacentProcess = getAdjacentProcess();
 
         separateArray(*&leftPart, *&rightPart);
@@ -116,10 +116,10 @@ public:
         }
     }
 
-    long *joinParts() {
+    int *joinParts() {
         MPI_Request request;
         MPI_Isend(arrayPart, partSize, MPI_INT, mainProcessId, 0, MPI_COMM_WORLD, &request);
-        long *result = nullptr;
+        int *result = nullptr;
         if (processNumber == mainProcessId) {
             for (int process = 0; process < processQuantity; ++process) {
                 auto *array = acceptData(process);
@@ -142,7 +142,7 @@ public:
         MPI_Comm_split(MPI_COMM_WORLD, newGroup, 0, &communicator);
     }
 
-    void separateArray(long *leftPart, long *rightPart) {
+    void separateArray(int *leftPart, int *rightPart) {
         int left = 0;
         int right = partSize - 1;
         while (true) {
@@ -157,8 +157,8 @@ public:
             }
             swap(arrayPart[left], arrayPart[right]);
         }
-        leftPart = new long [left];
-        rightPart = new long [right];
+        leftPart = new int [left];
+        rightPart = new int [right];
         for (int i = 0; i < partSize; i++) {
             if (i < left) {
                 leftPart[i] = arrayPart[i];
@@ -179,9 +179,9 @@ public:
         return processNumber + (processQuantity + 1) / 2;
     }
 
-    static void split(long* arr, int left, int right, int &t){
-        long x = arr[left];
-        long tmp;
+    static void split(int * arr, int left, int right, int &t){
+        int x = arr[left];
+        int tmp;
         t = left;
         for(int i = left + 1; i <= right; i++) {
             if(arr[i] < x) {
@@ -196,7 +196,7 @@ public:
         arr[t] = tmp;
     }
 
-    void sort(long* arr, int left, int right) {
+    void sort(int * arr, int left, int right) {
         if(left < right) {
             int t = 0;
             split(arr, left, right, t);
@@ -205,11 +205,11 @@ public:
         }
     }
 
-    long* unitParts (long *left, long *right) {
+    int * unitParts (int *left, int *right) {
         int lSize = sizeof(left);
         int rSize = sizeof(right);
         int size = lSize + rSize;
-        arrayPart = new long [size];
+        arrayPart = new int [size];
         for (int i = 0; i < lSize; ++i) {
             arrayPart[i] = left[i];
         }
@@ -231,14 +231,14 @@ public:
         ifstream dataset(dataFile);
         int size;
         dataset >> size;
-        arraydata = new long[size];
+        arraydata = new int [size];
         for (int i = 0; i < size; ++i) {
             dataset >> arraydata[i];
         }
         dataset.close();
     }
 
-    void writeResult(long *sortedArray) {
+    void writeResult(int *sortedArray) {
         ofstream dataset(sortedDataFile);
         int size = sizeof(sortedArray);
         dataset << size << endl;
