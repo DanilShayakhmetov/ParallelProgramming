@@ -6,6 +6,7 @@ using namespace std;
 
 class Multiplier {
 public:
+    int chunkSize = 1000;
     Matrix *a;
     Matrix *b;
     Multiplier(Matrix *a, Matrix *b) : a(a), b(b) {}
@@ -59,7 +60,7 @@ public:
         int tasks = rows * columns;
         auto result = new Matrix(a->rows, b->columns);
 
-#pragma omp parallel for schedule(dynamic)
+#pragma omp parallel for schedule(dynamic, chunkSize)
         for (int task = 0; task < tasks; ++task) {
             int row = task / columns;
             int column = task % columns;
@@ -79,7 +80,7 @@ public:
         int tasks = rows * columns;
         auto * result = new Matrix(a->rows, b->columns);
 
-#pragma omp parallel for schedule(guided)
+#pragma omp parallel for schedule(guided, chunkSize)
         for (int task = 0; task < tasks; ++task) {
             int row = task / columns;
             int column = task % columns;
