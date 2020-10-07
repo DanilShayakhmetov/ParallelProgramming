@@ -6,7 +6,7 @@ using namespace std;
 
 class Multiplier {
 public:
-    int chunkSize = 1000;
+    int const chunkSize = 1000;
     Matrix *a;
     Matrix *b;
     Multiplier(Matrix *a, Matrix *b) : a(a), b(b) {}
