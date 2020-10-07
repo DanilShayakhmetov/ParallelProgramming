@@ -142,10 +142,14 @@ public:
         }
 
         const int partSize = size / processQuantity;
+        const int lastPartSize = size - (processQuantity - 1) * partSize ;
         for (int process = 0; process < processQuantity; process++) {
             const int offset = process * partSize;
-            const int partSize = (process < processQuantity - 1) ? partSize : size - offset;
-            MPI_Bcast(&x[offset], partSize, MPI_DOUBLE, process, MPI_COMM_WORLD);
+            if (process < processQuantity - 1) {
+                MPI_Bcast(&x[offset], partSize, MPI_DOUBLE, process, MPI_COMM_WORLD);
+            } else {
+                MPI_Bcast(&x[offset], lastPartSize, MPI_DOUBLE, process, MPI_COMM_WORLD);
+            }
         }
     }
 
