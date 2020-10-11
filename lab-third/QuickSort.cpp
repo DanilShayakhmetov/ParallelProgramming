@@ -1,6 +1,9 @@
 #include <iostream>
 #include <mpi.h>
 #include <fstream>
+#include <cmath>
+#include <cstring>
+
 
 using namespace std;
 
@@ -9,59 +12,15 @@ class QuickSort {
 private:
     int arraySize = 1000;
     int *arraydata;
-    int *sortedPart;
-    int *other;
-    int partSize;
-    int step;
     string const dataFile = "dataset.txt";
     string const sortedDataFile = "sorted.txt";
-    MPI_Status status;
 
 public:
     const int mainProcessId = 0;
     int processNumber, processQuantity;
 
 
-    QuickSort() {
-        MPI_Comm_size(MPI_COMM_WORLD, &processQuantity);
-        MPI_Comm_rank(MPI_COMM_WORLD, &processNumber);
-    }
-
-    int *merge(int *leftPart, int leftPartSize, int *rightPart, int rightPartSize) {
-        int i, j, k;
-        int *result;
-
-        result = new int[leftPartSize + rightPartSize];
-
-        i = 0;
-        j = 0;
-        k = 0;
-        while (i < leftPartSize && j < rightPartSize)
-            if (leftPart[i] < rightPart[j]) {
-                result[k] = leftPart[i];
-                i++;
-                k++;
-            } else {
-                result[k] = rightPart[j];
-                j++;
-                k++;
-            }
-        if (i == leftPartSize)
-            while (j < rightPartSize) {
-                result[k] = rightPart[j];
-                j++;
-                k++;
-            }
-        else
-            while (i < leftPartSize) {
-                result[k] = leftPart[i];
-                i++;
-                k++;
-            }
-        return result;
-    }
-
-    void swapParts(int *arr, int i, int j) {
+    static void swap(int *arr, int i, int j) {
         int tmp;
         tmp = arr[i];
         arr[i] = arr[j];
@@ -72,53 +31,14 @@ public:
         int i, last;
         if (left >= right)
             return;
-        swapParts(arr, left, (left + right) / 2);
+        swap(arr, left, (left + right) / 2);
         last = left;
         for (i = left + 1; i <= right; i++)
             if (arr[i] < arr[left])
-                swapParts(arr, ++last, i);
-        swapParts(arr, left, last);
+                swap(arr, ++last, i);
+        swap(arr, left, last);
         quickSort(arr, left, last - 1);
         quickSort(arr, last + 1, right);
-    }
-
-    void sort() {
-        if (processNumber == mainProcessId) {
-            readDataset();
-            partSize = arraySize / processQuantity;
-            MPI_Bcast(&partSize, 1, MPI_INT, 0, MPI_COMM_WORLD);
-            sortedPart = new int[partSize];
-            MPI_Scatter(arraydata, partSize, MPI_INT, sortedPart, partSize, MPI_INT, 0, MPI_COMM_WORLD);
-            quickSort(sortedPart, 0, partSize - 1);
-        } else {
-            MPI_Bcast(&partSize, 1, MPI_INT, 0, MPI_COMM_WORLD);
-            sortedPart = new int[partSize];
-            MPI_Scatter(arraydata, partSize, MPI_INT, sortedPart, partSize, MPI_INT, 0, MPI_COMM_WORLD);
-            quickSort(sortedPart, 0, partSize - 1);
-        }
-
-        step = 1;
-        while (step < processQuantity) {
-            if (processNumber % (2 * step) == 0) {
-                if (processNumber + step < processQuantity) {
-                    MPI_Recv(&arraySize, 1, MPI_INT, processNumber + step, 0, MPI_COMM_WORLD, &status);
-                    other = new int[arraySize];
-                    MPI_Recv(other, arraySize, MPI_INT, processNumber + step, 0, MPI_COMM_WORLD, &status);
-                    sortedPart = merge(sortedPart, partSize, other, arraySize);
-                    partSize = partSize + arraySize;
-                }
-            } else {
-                int near = processNumber - step;
-                MPI_Send(&partSize, 1, MPI_INT, near, 0, MPI_COMM_WORLD);
-                MPI_Send(sortedPart, partSize, MPI_INT, near, 0, MPI_COMM_WORLD);
-                break;
-            }
-            step = step * 2;
-        }
-
-        if (processNumber == mainProcessId) {
-            writeResult(sortedPart);
-        }
     }
 
     void prepareDataset() {
@@ -141,13 +61,130 @@ public:
         dataset.close();
     }
 
-    void writeResult(int *sortedArray) {
-        ofstream dataset(sortedDataFile);
-        int size = sizeof(sortedArray);
-        dataset << size << endl;
-        for (auto i = 0; i < size; i++) {
-            dataset << sortedArray[i] << " ";
-        }
+    void writeResult(const int len, const int *array) {
+        ofstream dataset;
+        dataset.open(sortedDataFile);
+        dataset << len << endl;
+        for (auto i = 0; i < len; i++)
+            dataset << array[i] << " ";
         dataset.close();
     }
+
+    void parallelQuickSort(const int size, const int rank, const int len, int *array, int *lengths) {
+        auto iterations = log(size) / log(2);
+        int *arrayPart = new int[len];
+        int *buffer = new int[len];
+        int *offsets = new int[size]{0};
+
+        for (auto iteration = 0; iteration < iterations; iteration++) {
+            for (auto i = 1; i < size; i++)
+                offsets[i] = offsets[i - 1] + lengths[i - 1];
+
+            int mySize;
+            MPI_Scatter(lengths, 1, MPI_INT, &mySize, 1, MPI_INT, 0, MPI_COMM_WORLD);
+            MPI_Scatterv(array, lengths, offsets, MPI_INT, arrayPart, mySize, MPI_INT, 0, MPI_COMM_WORLD);
+
+            int color = rank / pow(2, iterations - iteration);
+            MPI_Comm MPI_LOCAL_COMMUNICATOR;
+            MPI_Comm_split(MPI_COMM_WORLD, color, rank, &MPI_LOCAL_COMMUNICATOR);
+
+            int localRank, localSize;
+            MPI_Comm_rank(MPI_LOCAL_COMMUNICATOR, &localRank);
+            MPI_Comm_size(MPI_LOCAL_COMMUNICATOR, &localSize);
+
+            auto pivot = 0;
+            if (localRank == 0 && mySize != 0)
+                pivot = arrayPart[0 + rand() % lengths[rank]];
+            MPI_Bcast(&pivot, 1, MPI_INT, 0, MPI_LOCAL_COMMUNICATOR);
+
+            auto lessSize = 0;
+            auto greaterSize = 0;
+            auto lessBorder = 0;
+            auto greaterBorder = lengths[rank] - 1;
+            while (lessBorder <= greaterBorder) {
+                if (arrayPart[lessBorder] <= pivot) {
+                    lessBorder++;
+                    lessSize++;
+                } else if (arrayPart[greaterBorder] > pivot) {
+                    greaterBorder--;
+                    greaterSize++;
+                } else {
+                    auto tmp = arrayPart[lessBorder];
+                    arrayPart[lessBorder] = arrayPart[greaterBorder];
+                    arrayPart[greaterBorder] = tmp;
+                }
+            }
+
+            auto rankFromLowerGroup = localRank < localSize / 2;
+            auto sendTo = 0;
+            auto recFrom = 0;
+            auto bufferSize = 0;
+            if (rankFromLowerGroup) {
+                sendTo = recFrom = localRank + localSize / 2;
+                MPI_Send(&greaterSize, 1, MPI_INT, sendTo, 0, MPI_LOCAL_COMMUNICATOR);
+                MPI_Recv(&bufferSize, 1, MPI_INT, recFrom, 0, MPI_LOCAL_COMMUNICATOR, MPI_STATUS_IGNORE);
+                MPI_Send(arrayPart + lessSize, greaterSize, MPI_INT, sendTo, 0, MPI_LOCAL_COMMUNICATOR);
+                MPI_Recv(buffer, bufferSize, MPI_INT, recFrom, 0, MPI_LOCAL_COMMUNICATOR, MPI_STATUS_IGNORE);
+            } else {
+                sendTo = recFrom = localRank - localSize / 2;
+                MPI_Recv(&bufferSize, 1, MPI_INT, recFrom, 0, MPI_LOCAL_COMMUNICATOR, MPI_STATUS_IGNORE);
+                MPI_Send(&lessSize, 1, MPI_INT, sendTo, 0, MPI_LOCAL_COMMUNICATOR);
+                MPI_Recv(buffer, bufferSize, MPI_INT, recFrom, 0, MPI_LOCAL_COMMUNICATOR, MPI_STATUS_IGNORE);
+                MPI_Send(arrayPart, lessSize, MPI_INT, sendTo, 0, MPI_LOCAL_COMMUNICATOR);
+            }
+
+            if (rankFromLowerGroup) {
+                memcpy(buffer + bufferSize, arrayPart, lessSize * sizeof(int));
+                bufferSize += lessSize;
+            } else {
+                memcpy(buffer + bufferSize, arrayPart + lessSize, greaterSize * sizeof(int));
+                bufferSize += greaterSize;
+            }
+
+            if (iteration == iterations - 1)
+                quickSort(buffer, 0, bufferSize);
+
+            MPI_Allgather(&bufferSize, 1, MPI_INT, lengths, 1, MPI_INT, MPI_COMM_WORLD);
+
+            for (auto i = 1; i < size; i++)
+                offsets[i] = offsets[i - 1] + lengths[i - 1];
+            MPI_Gatherv(buffer, bufferSize, MPI_INT, array, lengths, offsets, MPI_INT, 0, MPI_COMM_WORLD);
+            MPI_Comm_free(&MPI_LOCAL_COMMUNICATOR);
+        }
+
+        delete[] arrayPart;
+        delete[] buffer;
+        delete[] offsets;
+    }
+
+    int sort() {
+
+        MPI_Comm_size(MPI_COMM_WORLD, &processQuantity);
+        MPI_Comm_rank(MPI_COMM_WORLD, &processNumber);
+
+        if (processNumber == 0) {
+            readDataset();
+        }
+
+        MPI_Bcast(&arraySize, 1, MPI_LONG, 0, MPI_COMM_WORLD);
+
+        int *lengths = new int[processQuantity];
+        for (auto i = 0; i < processQuantity; i++)
+            lengths[i] = arraySize / processQuantity;
+        for (auto i = 0; i < arraySize % processQuantity; i++)
+            lengths[i]++;
+
+        if (processQuantity == 1)
+            quickSort(arraydata, 0, arraySize);
+        else
+            parallelQuickSort(processQuantity, processNumber, arraySize, arraydata, lengths);
+
+        if (processNumber == mainProcessId) {
+            writeResult(arraySize, arraydata);
+        }
+
+        delete[] arraydata;
+        delete[] lengths;
+    }
+
 };
