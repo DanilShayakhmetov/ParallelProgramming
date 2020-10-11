@@ -7,18 +7,19 @@ using namespace std;
 class QuickSort {
 
 private:
-    int arraySize = 10000000;
-    int pivot = 0;
-    int partSize;
+    int arraySize = 1000;
     int *arraydata;
-    int *arrayPart;
+    int *sortedPart;
+    int *other;
+    int partSize;
+    int step;
     string const dataFile = "dataset.txt";
     string const sortedDataFile = "sorted.txt";
+    MPI_Status status;
 
 public:
     const int mainProcessId = 0;
     int processNumber, processQuantity;
-
 
 
     QuickSort() {
@@ -26,195 +27,97 @@ public:
         MPI_Comm_rank(MPI_COMM_WORLD, &processNumber);
     }
 
-    void start(){
+    int *merge(int *leftPart, int leftPartSize, int *rightPart, int rightPartSize) {
+        int i, j, k;
+        int *result;
+
+        result = new int[leftPartSize + rightPartSize];
+
+        i = 0;
+        j = 0;
+        k = 0;
+        while (i < leftPartSize && j < rightPartSize)
+            if (leftPart[i] < rightPart[j]) {
+                result[k] = leftPart[i];
+                i++;
+                k++;
+            } else {
+                result[k] = rightPart[j];
+                j++;
+                k++;
+            }
+        if (i == leftPartSize)
+            while (j < rightPartSize) {
+                result[k] = rightPart[j];
+                j++;
+                k++;
+            }
+        else
+            while (i < leftPartSize) {
+                result[k] = leftPart[i];
+                i++;
+                k++;
+            }
+        return result;
+    }
+
+    void swapParts(int *arr, int i, int j) {
+        int tmp;
+        tmp = arr[i];
+        arr[i] = arr[j];
+        arr[j] = tmp;
+    }
+
+    void quickSort(int *arr, int left, int right) {
+        int i, last;
+        if (left >= right)
+            return;
+        swapParts(arr, left, (left + right) / 2);
+        last = left;
+        for (i = left + 1; i <= right; i++)
+            if (arr[i] < arr[left])
+                swapParts(arr, ++last, i);
+        swapParts(arr, left, last);
+        quickSort(arr, left, last - 1);
+        quickSort(arr, last + 1, right);
+    }
+
+    void sort() {
         if (processNumber == mainProcessId) {
             readDataset();
-            for (int proc = 0; proc < processQuantity; ++proc) {
-                auto part = getPart(proc);
-                MPI_Request request;
-                MPI_Isend(part, partSize, MPI_INT, proc, 0, MPI_COMM_WORLD, &request);
-            }
-        }
-
-        arrayPart = acceptData(mainProcessId);
-
-        while (true) {
-            if (processQuantity == 1) {
-                sort(arrayPart, 0, partSize);
-                break;
-            }
-
-            if (processNumber == mainProcessId) {
-                pivot = getPivot();
-            }
-            MPI_Bcast(&pivot, 1, MPI_INT, mainProcessId, MPI_COMM_WORLD);
-            sort(arrayPart, 0, partSize);
-            swapParts();
-            separateProcess();
-        }
-
-        if (processNumber == mainProcessId) {
-            writeResult(joinParts());
+            partSize = arraySize / processQuantity;
+            MPI_Bcast(&partSize, 1, MPI_INT, 0, MPI_COMM_WORLD);
+            sortedPart = new int[partSize];
+            MPI_Scatter(arraydata, partSize, MPI_INT, sortedPart, partSize, MPI_INT, 0, MPI_COMM_WORLD);
+            quickSort(sortedPart, 0, partSize - 1);
         } else {
-            joinParts();
-        }
-    }
-
-    int * getPart(int procId) {
-        partSize = arraySize / processQuantity;
-        int from = procId * partSize;
-        if (procId == processQuantity - 1) {
-            partSize = arraySize - from;
+            MPI_Bcast(&partSize, 1, MPI_INT, 0, MPI_COMM_WORLD);
+            sortedPart = new int[partSize];
+            MPI_Scatter(arraydata, partSize, MPI_INT, sortedPart, partSize, MPI_INT, 0, MPI_COMM_WORLD);
+            quickSort(sortedPart, 0, partSize - 1);
         }
 
-        return &arraydata[from];
-    }
-
-    int * acceptData(int from) {
-        int size;
-        int *tmp = new int[arraySize];
-        MPI_Status status;
-        MPI_Recv(tmp, arraySize, MPI_INT, from, 0, MPI_COMM_WORLD, &status);
-        MPI_Get_count(&status, MPI_INT, &size);
-        partSize = size;
-        return &arraydata[from];
-    }
-
-    int getPivot() {
-        int left = arrayPart[0];
-        int right = arrayPart[partSize - 1];
-        int middle = arrayPart[partSize / 2];
-        if (left <= middle && middle <= right) {
-            return middle;
-        } else if (middle <= left && left <= right) {
-            return left;
-        } else {
-            return right;
-        }
-    }
-
-    void swapParts() {
-        int *leftPart, *rightPart;
-        int adjacentProcess = getAdjacentProcess();
-
-        separateArray(*&leftPart, *&rightPart);
-        int size;
-        MPI_Request request;
-        if (this->rightPart()) {
-            size = sizeof(leftPart);
-            MPI_Isend(leftPart, size, MPI_INT, adjacentProcess, 0, MPI_COMM_WORLD, &request);
-        } else {
-            size = sizeof(rightPart);
-            MPI_Isend(rightPart, size, MPI_INT, adjacentProcess, 0, MPI_COMM_WORLD, &request);
-        }
-
-        auto acceptedData = acceptData(adjacentProcess);
-        if (this->rightPart()) {
-            arrayPart = unitParts(rightPart, acceptedData);
-        } else {
-            arrayPart = unitParts(leftPart, acceptedData);
-        }
-    }
-
-    int *joinParts() {
-        MPI_Request request;
-        MPI_Isend(arrayPart, partSize, MPI_INT, mainProcessId, 0, MPI_COMM_WORLD, &request);
-        int *result = nullptr;
-        if (processNumber == mainProcessId) {
-            for (int process = 0; process < processQuantity; ++process) {
-                auto *array = acceptData(process);
-
-                if (result == nullptr) {
-                    result = array;
-                } else {
-                    result = unitParts(result, array);
+        step = 1;
+        while (step < processQuantity) {
+            if (processNumber % (2 * step) == 0) {
+                if (processNumber + step < processQuantity) {
+                    MPI_Recv(&arraySize, 1, MPI_INT, processNumber + step, 0, MPI_COMM_WORLD, &status);
+                    other = new int[arraySize];
+                    MPI_Recv(other, arraySize, MPI_INT, processNumber + step, 0, MPI_COMM_WORLD, &status);
+                    sortedPart = merge(sortedPart, partSize, other, arraySize);
+                    partSize = partSize + arraySize;
                 }
-            }
-            return result;
-        } else {
-            return result;
-        }
-    }
-
-    void separateProcess() {
-        int newGroup = rightPart() ? 1 : 0;
-        MPI_Comm communicator;
-        MPI_Comm_split(MPI_COMM_WORLD, newGroup, 0, &communicator);
-    }
-
-    void separateArray(int *leftPart, int *rightPart) {
-        int left = 0;
-        int right = partSize - 1;
-        while (true) {
-            do {
-                ++left;
-            } while (arrayPart[left] < pivot);
-            do {
-                --right;
-            } while (arrayPart[right] >= pivot);
-            if (left >= right) {
+            } else {
+                int near = processNumber - step;
+                MPI_Send(&partSize, 1, MPI_INT, near, 0, MPI_COMM_WORLD);
+                MPI_Send(sortedPart, partSize, MPI_INT, near, 0, MPI_COMM_WORLD);
                 break;
             }
-            swap(arrayPart[left], arrayPart[right]);
+            step = step * 2;
         }
-        leftPart = new int [left];
-        rightPart = new int [right];
-        for (int i = 0; i < partSize; i++) {
-            if (i < left) {
-                leftPart[i] = arrayPart[i];
-            } else {
-                rightPart[i] = arrayPart[i];
-            }
-        }
-    }
 
-    bool rightPart() const {
-        return processNumber >= processQuantity / 2;
-    }
-
-    int getAdjacentProcess() const {
-        if (rightPart()) {
-            return processNumber - (processQuantity + 1) / 2;
-        }
-        return processNumber + (processQuantity + 1) / 2;
-    }
-
-    static void split(int * arr, int left, int right, int &t){
-        int x = arr[left];
-        int tmp;
-        t = left;
-        for(int i = left + 1; i <= right; i++) {
-            if(arr[i] < x) {
-                t++;
-                tmp = arr[t];
-                arr[t] = arr[i];
-                arr[i] = tmp;
-            }
-        }
-        tmp = arr[left];
-        arr[left] = arr[t];
-        arr[t] = tmp;
-    }
-
-    void sort(int * arr, int left, int right) {
-        if(left < right) {
-            int t = 0;
-            split(arr, left, right, t);
-            sort(arr, left, t);
-            sort(arr, t + 1, right);
-        }
-    }
-
-    int * unitParts (int *left, int *right) {
-        int lSize = sizeof(left);
-        int rSize = sizeof(right);
-        int size = lSize + rSize;
-        arrayPart = new int [size];
-        for (int i = 0; i < lSize; ++i) {
-            arrayPart[i] = left[i];
-        }
-        for (int i = lSize; i < size; ++i) {
-            arrayPart[i] = right[i - lSize];
+        if (processNumber == mainProcessId) {
+            writeResult(sortedPart);
         }
     }
 
@@ -231,7 +134,7 @@ public:
         ifstream dataset(dataFile);
         int size;
         dataset >> size;
-        arraydata = new int [size];
+        arraydata = new int[size];
         for (int i = 0; i < size; ++i) {
             dataset >> arraydata[i];
         }

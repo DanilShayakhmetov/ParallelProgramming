@@ -11,7 +11,7 @@ int main() {
     sorter.prepareDataset();
     sorter.readDataset();
     auto start = chrono::high_resolution_clock::now();
-    sorter.start();
+    sorter.sort();
     auto finish = chrono::high_resolution_clock::now();
     cout << chrono::duration<double>(finish - start).count() << endl;
     MPI_Finalize();
