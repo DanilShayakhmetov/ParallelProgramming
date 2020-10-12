@@ -44,42 +44,45 @@ public:
 
 private:
     void distanceCalculation(int type, int currentVertex) const {
-        if (type == 0) {
-            for (int vertex = 0; vertex < graph->nodesCount; ++vertex) {
-                if (visited[vertex]) {
-                    continue;
+        switch (type) {
+            case 0:
+                for (int vertex = 0; vertex < graph->nodesCount; ++vertex) {
+                    if (visited[vertex]) {
+                        continue;
+                    }
+                    distance[vertex] = min(distance[vertex],
+                                           distance[currentVertex] + graph->getDistance(currentVertex, vertex));
                 }
-                distance[vertex] = min(distance[vertex],
-                                       distance[currentVertex] + graph->getDistance(currentVertex, vertex));
-            }
-        } else if (type == 1) {
+            case 1:
 #pragma omp parallel for schedule(static) default(shared)
-            for (int vertex = 0; vertex < graph->nodesCount; ++vertex) {
-                if (visited[vertex]) {
-                    continue;
+                for (int vertex = 0; vertex < graph->nodesCount; ++vertex) {
+                    if (visited[vertex]) {
+                        continue;
+                    }
+                    distance[vertex] = min(distance[vertex],
+                                           distance[currentVertex] + graph->getDistance(currentVertex, vertex));
                 }
-                distance[vertex] = min(distance[vertex],
-                                       distance[currentVertex] + graph->getDistance(currentVertex, vertex));
-            }
-        } else if (type == 2) {
+            case 2:
 #pragma omp parallel for schedule(dynamic) default(shared)
-            for (int vertex = 0; vertex < graph->nodesCount; ++vertex) {
-                if (visited[vertex]) {
-                    continue;
+                for (int vertex = 0; vertex < graph->nodesCount; ++vertex) {
+                    if (visited[vertex]) {
+                        continue;
+                    }
+                    distance[vertex] = min(distance[vertex],
+                                           distance[currentVertex] + graph->getDistance(currentVertex, vertex));
                 }
-                distance[vertex] = min(distance[vertex],
-                                       distance[currentVertex] + graph->getDistance(currentVertex, vertex));
-            }
-        } else if (type == 3) {
+            case 3:
 #pragma omp parallel for schedule(guided) default(shared)
-            for (int vertex = 0; vertex < graph->nodesCount; ++vertex) {
-                if (visited[vertex]) {
-                    continue;
+                for (int vertex = 0; vertex < graph->nodesCount; ++vertex) {
+                    if (visited[vertex]) {
+                        continue;
+                    }
+                    distance[vertex] = min(distance[vertex],
+                                           distance[currentVertex] + graph->getDistance(currentVertex, vertex));
                 }
-                distance[vertex] = min(distance[vertex], distance[currentVertex] + graph->getDistance(currentVertex, vertex));
-            }
         }
     }
+
 
     int findMinDistance() const {
         int minDistance = inf, minVertex;
