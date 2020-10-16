@@ -141,15 +141,27 @@ public:
             x[i] = (b[i - offset] - sum) / A[(i - offset) * size + i];
         }
 
-        const int partSize = size / processQuantity;
-        const int lastPartSize = size - (processQuantity - 1) * partSize ;
-        for (int process = 0; process < processQuantity; process++) {
-            if (process < processQuantity - 1) {
-                MPI_Bcast(&x[process * partSize], partSize, MPI_DOUBLE, process, MPI_COMM_WORLD);
+        partSize = size / processQuantity;
+        const int lastPartSize = size - (processQuantity - 1) * partSize;
+
+        int *arrayPart = new int[processQuantity];
+        int *offsets = new int[processQuantity]{0};
+        int *lengths = new int[processQuantity];
+
+        for (auto i = 0; i < processQuantity; i++)
+            if (i < processQuantity - 1) {
+                lengths[i] = partSize;
             } else {
-                MPI_Bcast(&x[process * partSize], lastPartSize, MPI_DOUBLE, process, MPI_COMM_WORLD);
+                lengths[i] = lastPartSize;
             }
-        }
+
+        for (auto i = 1; i < processQuantity; i++)
+            offsets[i] = offsets[i - 1] + lengths[i - 1];
+
+        int mySize;
+        MPI_Scatter(lengths, 1, MPI_INT, &mySize, 1, MPI_INT, 0, MPI_COMM_WORLD);
+        MPI_Scatterv(x, lengths, offsets, MPI_DOUBLE, arrayPart, mySize, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+
     }
 
     bool checkPrecision() {
