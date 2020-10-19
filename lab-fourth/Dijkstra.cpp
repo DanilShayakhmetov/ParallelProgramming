@@ -9,11 +9,11 @@ const int inf = 888888888;
 class Dijkstra {
 public:
     Graph *graph;
-
-    bool *visited;
     int *distance;
-    int source;
+    bool *visited;
     int n;
+    int source;
+
 
     Dijkstra(Graph *graph, int source) : graph(graph), source(source), n(graph->nodesCount) {
         visited = new bool[n];
@@ -28,13 +28,14 @@ public:
         visited[source] = true;
         distance[source] = 0;
 #pragma omp parallel for schedule(static) default(shared)
-        for (int vertex = 0; vertex < graph->nodesCount; ++vertex) {
+        for (int vertex = 0; vertex < n; ++vertex) {
             if (vertex == source) {
                 continue;
             }
             distance[vertex] = graph->getDistance(source, vertex);
         }
-        for (int i = 0; i < graph->nodesCount - 1; ++i) {
+#pragma omp parallel for schedule(static) default(shared)
+        for (int i = 0; i < n - 1; ++i) {
             int currentVertex = findMinDistance();
             visited[currentVertex] = true;
             distanceCalculation(type, currentVertex);
@@ -46,7 +47,7 @@ private:
     void distanceCalculation(int type, int currentVertex) const {
         switch (type) {
             case 0:
-                for (int vertex = 0; vertex < graph->nodesCount; ++vertex) {
+                for (int vertex = 0; vertex < n; ++vertex) {
                     if (visited[vertex]) {
                         continue;
                     }
@@ -55,7 +56,7 @@ private:
                 }
             case 1:
 #pragma omp parallel for schedule(static) default(shared)
-                for (int vertex = 0; vertex < graph->nodesCount; ++vertex) {
+                for (int vertex = 0; vertex < n; ++vertex) {
                     if (visited[vertex]) {
                         continue;
                     }
@@ -63,8 +64,8 @@ private:
                                            distance[currentVertex] + graph->getDistance(currentVertex, vertex));
                 }
             case 2:
-#pragma omp parallel for schedule(dynamic) default(shared)
-                for (int vertex = 0; vertex < graph->nodesCount; ++vertex) {
+#pragma omp parallel for schedule(dynamic, chunk) default(shared)
+                for (int vertex = 0; vertex < n; ++vertex) {
                     if (visited[vertex]) {
                         continue;
                     }
@@ -72,8 +73,8 @@ private:
                                            distance[currentVertex] + graph->getDistance(currentVertex, vertex));
                 }
             case 3:
-#pragma omp parallel for schedule(guided) default(shared)
-                for (int vertex = 0; vertex < graph->nodesCount; ++vertex) {
+#pragma omp parallel for schedule(guided, chunk) default(shared)
+                for (int vertex = 0; vertex < n; ++vertex) {
                     if (visited[vertex]) {
                         continue;
                     }
@@ -86,7 +87,8 @@ private:
 
     int findMinDistance() const {
         int minDistance = inf, minVertex;
-        for (int vertex = 0; vertex < graph->nodesCount; ++vertex) {
+#pragma omp parallel for schedule(static) default(shared)
+        for (int vertex = 0; vertex < n; ++vertex) {
             if (visited[vertex]) {
                 continue;
             }

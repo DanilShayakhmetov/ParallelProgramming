@@ -7,22 +7,22 @@
 
 using namespace std;
 
-double duration(int type) {
+float duration(int type) {
     auto graph = new Graph();
     auto dijkstra = new Dijkstra(graph, 0);
 
     auto start = std::chrono::high_resolution_clock::now();
     dijkstra->execute(type);
     auto finish = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration<double>(finish - start).count();
+    auto duration = std::chrono::duration<float>(finish - start).count();
     return duration;
 }
 
 int main() {
-    int type = 0;
 
-    int executeCount = 10;
-    double averageTime = 0;
+    float averageTime = 0;
+    int const executeCount = 10;
+    int const type = 1;
 
     for (int i = 0; i < executeCount; ++i) {
         averageTime += duration(type);
