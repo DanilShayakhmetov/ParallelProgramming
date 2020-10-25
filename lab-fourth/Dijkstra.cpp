@@ -34,7 +34,6 @@ public:
             }
             distance[vertex] = graph->getDistance(source, vertex);
         }
-#pragma omp parallel for schedule(static) default(shared)
         for (int i = 0; i < n - 1; ++i) {
             int currentVertex = findMinDistance();
             visited[currentVertex] = true;
@@ -87,7 +86,6 @@ private:
 
     int findMinDistance() const {
         int minDistance = inf, minVertex;
-#pragma omp parallel for schedule(static) default(shared)
         for (int vertex = 0; vertex < n; ++vertex) {
             if (visited[vertex]) {
                 continue;
